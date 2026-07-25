@@ -1,0 +1,56 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.6'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.deepthinktech'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+ext {
+    flywayVersion = '10.20.1'
+    awsSdkVersion = '2.29.20'
+    lombokVersion = '1.18.42'
+}
+
+repositories {
+    // Google's read-only Maven Central mirror first — repo.maven.apache.org occasionally
+    // rate-limits/403s an IP under heavy build traffic; the GCS mirror does not.
+    maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // Spring Boot 4 split auto-configuration into per-technology modules: flyway-core alone
+    // does NOT trigger auto-migration on startup — the spring-boot-flyway module is required.
+    implementation 'org.springframework.boot:spring-boot-flyway'
+    implementation "org.flywaydb:flyway-core:${flywayVersion}"
+    implementation "org.flywaydb:flyway-mysql:${flywayVersion}"
+    runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // Plain AWS SDK v2 SQS client — a hand-rolled long-poll consumer gives us explicit
+    // control over the "delete only after a successful insert" contract (no framework
+    // auto-ack), which is the whole point of the no-message-loss requirement.
+    implementation "software.amazon.awssdk:sqs:${awsSdkVersion}"
+
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
