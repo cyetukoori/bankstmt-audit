@@ -1,0 +1,53 @@
+// =============================================================================
+//  AUDIT — UNIT TEST pipeline.
+//
+//  Scope: `./gradlew test` — mocks only, no database, no containers, no network.
+//  The fast feedback loop; needs no Docker, so it runs on any agent. Publishes
+//  the JUnit results.
+//
+//  (There is no integration/functional level yet for this service — the SQS
+//  consumer + MySQL insert are covered by unit tests today. Add Testcontainers
+//  levels here, mirroring bankstmt-server, when that harness lands.)
+// =============================================================================
+
+pipeline {
+  agent any
+
+  options {
+    disableConcurrentBuilds()
+    timestamps()
+    buildDiscarder(logRotator(numToKeepStr: '10'))
+    timeout(time: 15, unit: 'MINUTES')
+  }
+
+  environment {
+    GRADLE_OPTS = '-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx2g'
+  }
+
+  stages {
+    stage('Toolchain check') {
+      steps {
+        sh '''
+          set -euo pipefail
+          command -v java >/dev/null || { echo "java missing — JDK 25 required"; exit 1; }
+          java -version 2>&1 | head -1
+          test -x ./gradlew || chmod +x ./gradlew
+        '''
+      }
+    }
+
+    stage('Unit tests') {
+      steps {
+        sh './gradlew test --no-daemon --stacktrace'
+      }
+    }
+  }
+
+  post {
+    always {
+      junit testResults: '**/build/test-results/test/*.xml', allowEmptyResults: false
+    }
+    success { echo 'Audit unit tests passed.' }
+    failure { echo 'Audit unit tests FAILED — see the Test Result trend for the failing case.' }
+  }
+}

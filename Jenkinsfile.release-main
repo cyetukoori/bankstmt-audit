@@ -1,0 +1,60 @@
+// =============================================================================
+//  AUDIT — MAIN RELEASE GATE.
+//
+//  Same criterion as develop (all tests must pass) but pinned to `main`, the
+//  production line. Runs the test set fail-fast, then triggers the deploy job.
+//
+//  Pinned to the main branch by its Job DSL definition (jenkins/jobs.groovy).
+// =============================================================================
+
+pipeline {
+  agent any
+
+  options {
+    disableConcurrentBuilds()
+    timestamps()
+    timeout(time: 30, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '20'))
+  }
+
+  parameters {
+    string(
+      name: 'DEPLOY_JOB',
+      defaultValue: 'deploy',
+      description: 'Downstream job to trigger once the gate is green (relative to this folder). Blank = gate only, no release.')
+  }
+
+  environment {
+    GRADLE_OPTS = '-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx2g'
+  }
+
+  stages {
+    stage('Preflight') {
+      steps {
+        sh '''
+          set -euo pipefail
+          command -v java >/dev/null || { echo "java missing — JDK 25 required"; exit 1; }
+          test -x ./gradlew || chmod +x ./gradlew
+        '''
+      }
+    }
+
+    stage('Unit') {
+      steps { sh './gradlew test --no-daemon --stacktrace' }
+    }
+
+    stage('Release (main)') {
+      when { expression { params.DEPLOY_JOB?.trim() } }
+      steps {
+        echo "All main tests passed — releasing via '${params.DEPLOY_JOB}'."
+        build job: params.DEPLOY_JOB, wait: true, propagate: true
+      }
+    }
+  }
+
+  post {
+    always { junit testResults: '**/build/test-results/test/*.xml', allowEmptyResults: true }
+    success { echo 'MAIN GATE PASSED — tests green; release done (or gate-only if DEPLOY_JOB was blank).' }
+    failure { echo 'MAIN GATE FAILED — nothing released.' }
+  }
+}
