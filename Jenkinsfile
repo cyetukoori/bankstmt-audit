@@ -3,8 +3,8 @@
 //  to Elastic Beanstalk (Docker platform), env `bankstmt-audit-prod`.
 //
 //  Flow: Preflight -> Unit tests -> Build fat jar -> Deploy to EB.
-//  The deploy stage runs only on `develop`/`main` (feature branches build+test
-//  but never deploy). Mirrors the bankstmt-web EB deploy pattern.
+//  Main-only: the deploy stage runs on `main` (the project builds no other
+//  branch). Mirrors the bankstmt-web EB deploy pattern.
 //
 //  The EB source bundle is a SLIM runtime bundle assembled here (a runtime-only
 //  Dockerfile + the prebuilt app.jar + .ebextensions) so the small t3 instance
@@ -17,7 +17,7 @@
 //  properties on the environment already — the pipeline never touches them.
 //
 //  Agent prerequisites: JDK 25, aws CLI v2, zip, git.
-//  Trigger: GitHub webhook / SCM poll -> this job on push to develop or main.
+//  Trigger: GitHub webhook / SCM poll -> this job on push to main.
 // =============================================================================
 
 pipeline {
@@ -66,10 +66,10 @@ pipeline {
     }
 
     stage('Deploy to Elastic Beanstalk') {
-      // In the multibranch `branches` job, deploy only from develop/main (feature branches
-      // build+test but never deploy). In the standalone `deploy` job (BRANCH_NAME unset, run
-      // by the release gates or manually), the deploy is the whole point — always run it.
-      when { anyOf { branch 'develop'; branch 'main'; expression { !env.BRANCH_NAME } } }
+      // Main-only: in the multibranch `branches` job, deploy only from main (the project
+      // discovers no other branch). In the standalone `deploy` job (BRANCH_NAME unset, run
+      // by the release gate or manually), the deploy is the whole point — always run it.
+      when { anyOf { branch 'main'; expression { !env.BRANCH_NAME } } }
       steps {
         sh '''
           set -euo pipefail
@@ -156,7 +156,7 @@ DOCKER
       junit testResults: '**/build/test-results/test/*.xml', allowEmptyResults: false
       sh 'rm -rf ebbundle deploy.zip || true'
     }
-    success { echo 'Audit service: tests green' + (env.BRANCH_NAME in ['develop', 'main'] ? ' and deployed to Elastic Beanstalk.' : ' (build-only, non-deploy branch).') }
+    success { echo 'Audit service: tests green' + ((env.BRANCH_NAME == 'main' || !env.BRANCH_NAME) ? ' and deployed to Elastic Beanstalk.' : ' (build-only, non-deploy branch).') }
     failure { echo 'Audit pipeline FAILED — EB keeps running the previous application version.' }
   }
 }

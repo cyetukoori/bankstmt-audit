@@ -5,12 +5,14 @@ All jobs for this repo are generated from [`jobs.groovy`](jobs.groovy) (Job DSL)
 
 ## Pipelines
 
+**Main-only:** `main` is the production branch. There is intentionally **no develop pipeline** —
+`allowedBranches` and every generated job are scoped to `*/main`.
+
 | Job | Jenkinsfile | Trigger | What it does |
 |-----|-------------|---------|--------------|
-| `branches` (multibranch) | `Jenkinsfile` | push to `develop`/`main` | build + unit test; **deploy to Elastic Beanstalk** (`bankstmt-audit-prod`) on develop/main |
-| `unit` | `Jenkinsfile.unit` | SCM poll (H/5) | fast `./gradlew test` |
-| `deploy` | `Jenkinsfile` | manual / release gate | build jar → EB bundle → `update-environment` → health gate |
-| `release-develop` | `Jenkinsfile.release-develop` | manual (pinned to `develop`) | tests must pass → trigger `deploy` |
+| `branches` (multibranch) | `Jenkinsfile` | push to `main` | build + unit test; **deploy to Elastic Beanstalk** (`bankstmt-audit-prod`) on main |
+| `unit` | `Jenkinsfile.unit` | SCM poll (H/5), main | fast `./gradlew test` |
+| `deploy` | `Jenkinsfile` | manual / release gate, main | build jar → EB bundle → `update-environment` → health gate |
 | `release-main` | `Jenkinsfile.release-main` | manual (pinned to `main`) | tests must pass → trigger `deploy` |
 
 ## Deploy model
