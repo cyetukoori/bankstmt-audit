@@ -90,4 +90,71 @@ class AuditInsertServiceTest {
         assertThat(saved.getPrevHash()).isEqualTo("a".repeat(64));
         assertThat(saved.getEntryHash()).hasSize(64).isNotEqualTo("a".repeat(64));
     }
+
+    @Test
+    void rejectsBlankEventId() {
+        assertThatThrownBy(() -> service.insert(message("   ")))
+            .isInstanceOf(IllegalArgumentException.class);
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void startsTheChainAtOneWhenTheTailRowHasNoSeq() {
+        // A legacy tail row with a null seq must not NPE — it is treated as an empty chain.
+        AuditEvent last = new AuditEvent();
+        when(repository.existsById("e1")).thenReturn(false);
+        when(repository.findTopByOrderBySeqDesc()).thenReturn(last);
+
+        service.insert(message("e1"));
+
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getSeq()).isEqualTo(1L);
+        assertThat(captor.getValue().getPrevHash()).isEqualTo("0".repeat(64));
+    }
+
+    @Test
+    void mapsEveryFieldOntoTheEntityAndStampsCreatedAt() {
+        when(repository.existsById("e1")).thenReturn(false);
+
+        service.insert(message("e1"));
+
+        AuditEvent saved = saved();
+        assertThat(saved.getId()).isEqualTo("e1");
+        assertThat(saved.getTenantId()).isEqualTo("t1");
+        assertThat(saved.getUserId()).isEqualTo("u1");
+        assertThat(saved.getAction()).isEqualTo("POST /api/statements");
+        assertThat(saved.getIpAddress()).isEqualTo("1.2.3.4");
+        assertThat(saved.getUserAgent()).isEqualTo("curl");
+        assertThat(saved.getRequestId()).isEqualTo("req-1");
+        assertThat(saved.getDetails()).isEqualTo("status=200");
+        assertThat(saved.getCreatedAt()).isNotNull();
+        assertThat(saved.getOccurredAt()).isNotNull();
+    }
+
+    @Test
+    void storesNullOccurredAtWhenMissing() {
+        when(repository.existsById("e1")).thenReturn(false);
+        AuditMessage m = new AuditMessage("e1", null, null, "a", null, null, null, null, null, null, null);
+
+        service.insert(m);
+
+        assertThat(saved().getOccurredAt()).isNull();
+    }
+
+    @Test
+    void storesNullOccurredAtWhenMalformedRatherThanFailingTheInsert() {
+        when(repository.existsById("e1")).thenReturn(false);
+        AuditMessage m = new AuditMessage("e1", null, null, "a", null, null, null, null, null, null, "not-a-timestamp");
+
+        service.insert(m);
+
+        assertThat(saved().getOccurredAt()).isNull();
+    }
+
+    private AuditEvent saved() {
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(repository).save(captor.capture());
+        return captor.getValue();
+    }
 }
