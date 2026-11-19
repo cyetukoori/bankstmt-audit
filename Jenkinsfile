@@ -84,7 +84,7 @@ pipeline {
           cp "$JAR" ebbundle/app.jar
           cp .ebextensions/*.config ebbundle/.ebextensions/ 2>/dev/null || true
           cat > ebbundle/Dockerfile <<'DOCKER'
-FROM eclipse-temurin:25-jre
+FROM public.ecr.aws/amazoncorretto/amazoncorretto:25-al2023-headless
 WORKDIR /app
 COPY app.jar /app/app.jar
 EXPOSE 8080
