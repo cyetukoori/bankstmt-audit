@@ -172,6 +172,15 @@ DOCKER
   }
 
   post {
+    // SOC 2 CC8.1: every production deploy attempt (pass or fail) is written to the audit trail
+    // with its commit, author and build URL. Never fails the build; see record-deploy.sh.
+    cleanup {
+      script {
+        if (env.BRANCH_NAME == null || env.BRANCH_NAME == 'main') {
+          sh "test -x \"${env.WORKSPACE}@devops/scripts/record-deploy.sh\" && \"${env.WORKSPACE}@devops/scripts/record-deploy.sh\" bankstmt-audit ${currentBuild.currentResult} || true"
+        }
+      }
+    }
     always {
       junit testResults: '**/build/test-results/test/*.xml', allowEmptyResults: false
       sh 'rm -rf ebbundle deploy.zip || true'
