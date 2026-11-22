@@ -3,6 +3,8 @@ plugins {
     id 'org.springframework.boot' version '4.0.6'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'jacoco'
+    // CycloneDX SBOM (Apache 2.0) — scanned by the CI security gate (Trivy cannot read build.gradle).
+    id 'org.cyclonedx.bom' version '3.6.1'
 }
 
 jacoco {
@@ -49,6 +51,8 @@ dependencies {
     // control over the "delete only after a successful insert" contract (no framework
     // auto-ack), which is the whole point of the no-message-loss requirement.
     implementation "software.amazon.awssdk:sqs:${awsSdkVersion}"
+    // Nightly hash-chain verification publishes its result as a CloudWatch metric.
+    implementation "software.amazon.awssdk:cloudwatch:${awsSdkVersion}"
 
     compileOnly "org.projectlombok:lombok:${lombokVersion}"
     annotationProcessor "org.projectlombok:lombok:${lombokVersion}"

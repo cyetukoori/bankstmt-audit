@@ -1,13 +1,10 @@
 package com.deepthinktech.bankstmt_audit.ingest;
 
+import com.deepthinktech.bankstmt_audit.chain.AuditChain;
 import com.deepthinktech.bankstmt_audit.domain.AuditEvent;
 import com.deepthinktech.bankstmt_audit.repo.AuditEventRepository;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.HexFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -71,31 +68,10 @@ public class AuditInsertService {
     private void seal(AuditEvent event) {
         AuditEvent last = repository.findTopByOrderBySeqDesc();
         long seq = (last != null && last.getSeq() != null) ? last.getSeq() + 1 : 1L;
-        String prev = (last != null && last.getEntryHash() != null) ? last.getEntryHash() : GENESIS;
+        String prev = (last != null && last.getEntryHash() != null) ? last.getEntryHash() : AuditChain.GENESIS;
         event.setSeq(seq);
         event.setPrevHash(prev);
-        event.setEntryHash(hash(prev, event));
-    }
-
-    private static final String GENESIS = "0".repeat(64);
-    private static final String SEP = "\u001f"; // control char, cannot appear in values
-
-    private static String hash(String prev, AuditEvent e) {
-        String canonical = String.join(SEP,
-            nz(e.getId()), nz(e.getOccurredAt() == null ? null : e.getOccurredAt().toString()),
-            nz(e.getTenantId()), nz(e.getUserId()), nz(e.getAction()), nz(e.getSubjectType()),
-            nz(e.getSubjectId()), nz(e.getDetails()));
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest((prev + "\n" + canonical).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 unavailable", ex);
-        }
-    }
-
-    private static String nz(String v) {
-        return v == null ? "" : v;
+        event.setEntryHash(AuditChain.hash(prev, event));
     }
 
     private AuditEvent toEntity(AuditMessage m) {
