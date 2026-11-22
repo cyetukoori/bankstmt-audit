@@ -4,9 +4,9 @@ spring:
 
   datasource:
     # Full JDBC URL is injected so the DB host / schema name stay outside the image.
-    # Default points at the private address of the MySQLAuditDb box (reachable from the
-    # Elastic Beanstalk env inside the same VPC).
-    url: ${AUDIT_DB_URL:jdbc:mysql://172.31.17.51:3306/bankstmt_audit?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    # TLS is REQUIRED (DatabaseTlsGuard refuses to start otherwise): the URL must carry
+    # sslMode=REQUIRED, or VERIFY_CA / VERIFY_IDENTITY with the RDS CA bundle in a truststore.
+    url: ${AUDIT_DB_URL:jdbc:mysql://172.31.17.51:3306/bankstmt_audit?sslMode=REQUIRED&serverTimezone=UTC}
     username: ${AUDIT_DB_USER:audit_user}
     password: ${AUDIT_DB_PASSWORD:}
     hikari:
@@ -39,6 +39,17 @@ audit:
     wait-time-seconds: ${AUDIT_INGEST_WAIT_SECONDS:20}
     max-messages: ${AUDIT_INGEST_MAX_MESSAGES:10}
     visibility-timeout-seconds: ${AUDIT_INGEST_VISIBILITY_SECONDS:60}
+  # Unencrypted audit-DB connections are refused at startup. false = warn only (local DB only).
+  db:
+    require-tls: ${AUDIT_DB_REQUIRE_TLS:true}
+  # Nightly hash-chain verification (chain.AuditChainVerifier). Findings log AUDIT_CHAIN_BROKEN
+  # and publish BankStmt/Audit ChainBreaks; the instance role needs cloudwatch:PutMetricData.
+  verify:
+    enabled: ${AUDIT_VERIFY_ENABLED:true}
+    cron: ${AUDIT_VERIFY_CRON:0 30 3 * * *}
+    page-size: ${AUDIT_VERIFY_PAGE_SIZE:1000}
+    content-check-from-seq: ${AUDIT_VERIFY_CONTENT_FROM_SEQ:1}
+    cloudwatch-enabled: ${AUDIT_VERIFY_CLOUDWATCH:true}
 
 # Health is exposed for the Elastic Beanstalk / ALB health check on /actuator/health.
 management:
