@@ -3,6 +3,8 @@ plugins {
     id 'org.springframework.boot' version '4.0.6'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'jacoco'
+    // CycloneDX SBOM (Apache 2.0) — scanned by the CI security gate (Trivy cannot read build.gradle).
+    id 'org.cyclonedx.bom' version '3.6.1'
 }
 
 jacoco {

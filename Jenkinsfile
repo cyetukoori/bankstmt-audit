@@ -65,6 +65,26 @@ pipeline {
       }
     }
 
+    // SOC 2 CC7.1 / CC8.1 gate — nothing reaches production with a leaked secret, a fixable
+    // HIGH/CRITICAL CVE, a HIGH/CRITICAL misconfiguration, or a dependency under a license that is
+    // not free for commercial use. The script (and how to accept a risk via .trivyignore /
+    // .gitleaksignore) lives in bankstmt-devops/scripts/security-scan.sh, so every repo runs the
+    // same pinned scanners. Reports + SBOM are archived on the build as audit evidence.
+    stage('Security scan') {
+      steps {
+        dir("${env.WORKSPACE}@devops") {
+          git url: 'https://github.com/cyetukoori/bankstmt-devops.git', branch: 'main',
+              credentialsId: 'gh-deploy-token'
+        }
+        sh "\"${env.WORKSPACE}@devops/scripts/security-scan.sh\" . --gradle"
+      }
+      post {
+        always {
+          archiveArtifacts artifacts: 'security-reports/**', allowEmptyArchive: true, fingerprint: false
+        }
+      }
+    }
+
     stage('Deploy to Elastic Beanstalk') {
       // Main-only: in the multibranch `branches` job, deploy only from main (the project
       // discovers no other branch). In the standalone `deploy` job (BRANCH_NAME unset, run
